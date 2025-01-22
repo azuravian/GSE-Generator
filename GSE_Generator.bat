@@ -49,7 +49,7 @@ call :function_banner
 set TOASTNAME=ACHIEVEMENT_01&call :function_script_toast
 
 : IMPUTTEXTBOX
-call :function_search_imput
+call :function_search_id
 
 : SEARCH_DLCS
 call :function_search_dlcs
@@ -115,7 +115,7 @@ echo   [44;30m                                                                 
 echo.
 goto :EOF
 
-:function_search_imput
+:function_search_id
 set Search=
 :: ImputTextBox / for multiline bypass characters like: ,;)=
 for /f "tokens=1-9 delims=[]" %%1 in ('^
@@ -140,7 +140,7 @@ for /f "tokens=1-9 delims=[]" %%1 in ('^
 		$TextLabel ^= New-Object Windows.Forms.Label -Property @{^
 			Location		^= New-Object Drawing.Point 10^, 5^;^
 			Size			^= New-Object Drawing.Size 380^, 20^;^
-			Text			^= 'Enter the name or ID of game:'^;^
+			Text			^= 'Enter the ID of game:'^;^
 			Font			^= 'Consolas^, 13'^
 		}^;^
 		$form.Controls.Add($TextLabel^)^;^
@@ -170,48 +170,130 @@ for /f "tokens=1-9 delims=[]" %%1 in ('^
 			Write-Host 'PRESSED_X_TO_EXIT'^;^
 		}^
 ') do set "Search=%%1"
-if "%Search%"=="TEXTBOX_IS_EMPTY" call :function_banner&call :function_search_imput
+if "%Search%"=="TEXTBOX_IS_EMPTY" call :function_banner&call :function_search_id
 if "%Search%"=="PRESSED_X_TO_EXIT" exit
 
+set ID=%Search%
+
+:function_search_id
+set Search=
+:: ImputTextBox / for multiline bypass characters like: ,;)=
+for /f "tokens=1-9 delims=[]" %%1 in ('^
+	powershell -Command^
+		Add-Type -AssemblyName System.Windows.Forms^;^
+		Add-Type -AssemblyName System.Drawing^;^
+		$font ^= New-Object System.Drawing.Font^;^
+^
+		$form2 ^= New-Object Windows.Forms.Form -Property @{^
+			StartPosition	^= [Windows.Forms.FormStartPosition]::CenterScreen^;^
+			FormBorderStyle ^= [Windows.Forms.FormBorderStyle]::FixedDialog^;^
+			MaximizeBox		^= $false^;^
+			MinimizeBox		^= $false^;^
+			Size			^= New-Object Drawing.Size 400^, 155^;^
+			ForeColor		^= 'white'^;^
+			BackColor		^= '#282828'^;^
+			Text			^= '%TITLE%'^;^
+			Topmost			^= $true^;^
+			Font			^= 'Consolas^, 13'^
+		}^;^
+^
+		$TextLabel2 ^= New-Object Windows.Forms.Label -Property @{^
+			Location		^= New-Object Drawing.Point 10^, 5^;^
+			Size			^= New-Object Drawing.Size 380^, 20^;^
+			Text			^= 'Enter the name of game:'^;^
+			Font			^= 'Consolas^, 13'^
+		}^;^
+		$form2.Controls.Add($TextLabel2^)^;^
+^
+		$NameTextBox ^= New-Object Windows.Forms.TextBox -Property @{^
+			Location		^= New-Object Drawing.Point 10^, 35^;^
+			Size			^= New-Object Drawing.Size 360^;^
+			Text			^= ''^;^
+			MaxLength		^= 39^;^
+		}^;^
+		$form2.Controls.Add($NameTextBox^)^;^
+^
+		$SearchButton2 ^= New-Object Windows.Forms.Button -Property @{^
+			Location		^= New-Object Drawing.Point 100^, 75^;^
+			Size			^= New-Object Drawing.Size 190^, 30^;^
+			Text			^= 'SEARCH'^;^
+			DialogResult	^= [Windows.Forms.DialogResult]::OK^;^
+			Font			^= 'Microsoft Sans Serif^, 13'^
+		}^;^
+		$form2.Controls.Add($SearchButton2^)^;^
+^
+		$result2 ^= $form2.ShowDialog(^)^;^
+		if ($result2 -eq [Windows.Forms.DialogResult]::OK^) {^
+			$Search ^= ($NameTextBox^).Text^;^
+			Write-Host $Search'[TEXTBOX_IS_EMPTY]'^;^
+		} else {^
+			Write-Host 'PRESSED_X_TO_EXIT'^;^
+		}^
+') do set "Search=%%1"
+if "%Search%"=="TEXTBOX_IS_EMPTY" call :function_banner&call :function_search_id
+if "%Search%"=="PRESSED_X_TO_EXIT" exit
+
+set Name=%Search%
+
+echo Game App ID=%ID%
+echo Game Name=%Name%
+
+:: Check if either ID or Name is empty, if so, ask again
+if "%ID%"=="" goto :function_search_id
+if "%Name%"=="" goto :function_search_id
+
+:: If both are filled, assign to GameAppID and GameName
+set GameAppID=%ID%
+set GName=%Name%
+
+:: Print variables (for testing purposes)
+echo Game App ID=%GameAppID%
+echo Game Name=%GName%
+
+:: Continue with the rest of the script
 
 :SEARCH_GAME
 echo.
 echo  [ ] Searching game . . .
 rem chcp 65001>NUL
-set GameAppID=&set GameName=
-set "Search=%Search:&=%"
-set "Search=%Search:'=%"
-set "Search=%Search:  = %"
-for /f "tokens=*" %%a in ('powershell -Command "'%Search%'.ToLower()"') do set "game=%%a"
-set "steamgame=%game: =+%"
+set GameName=
+set "GameName=%GName:&=%"
+set "GameName=%GName:'=%"
+set "GameName=%GName:  = %"
+for /f "tokens=*" %%a in ('powershell -Command "'%GName%'.ToLower()"') do set "game=%%a"
+rem set "steamgame=%game: =+%"
+set GameName=%game%
 
+REM Tools\CURL\curl.exe -s --config Tools/CURL/config/safari15_5.config --header @Tools/CURL/config/safari15_5.header --url "https://www.google.com/search?q=%steamgame%+steamdb" -o google.html
 
-Tools\CURL\curl.exe -s --config Tools/CURL/config/safari15_5.config --header @Tools/CURL/config/safari15_5.header --url "https://www.google.com/search?q=%steamgame%+steamdb" -o google.html
-powershell -Command "(gc -LiteralPath '%HOME%google.html') -replace '<div><span jscontroller', \"`r`n^<GAME^>^<\" -replace 'href=""', '><' -replace '"""" data-', 'game><data' -replace \"'\", '' -replace '\\', '' -replace '\|', '' -replace '\?', '' -replace '\*', '' -replace '""', '' -replace '&apos;', '' -replace '&amp;', '' -replace '&#39;', '' | Out-File -LiteralPath '%HOME%google.html' -NoNewline -encoding Default">NUL
-for /f "tokens=1-9 delims=<>" %%1 in (google.html) do (
-	if "%%1"=="GAME" (
-		if not defined GameAppID (
-			for /f "tokens=1-9 delims=/" %%a in ("%%4") do (
-				if "%%c"=="app" (
-					if "%%e"=="game" (
-						set GameAppID=%%d
-					)
-				)
-			)
-		)
-	)
-)
-if defined GameAppID (
-	for /f "tokens=1-10 delims=<>" %%a in (google.html) do (
-		if "%%d"=="https://steamdb.info/app/%GameAppID%/game" (
-			set "GameName=%%i"
-		)
-	)
-)
-del "google.html">NUL
-if not defined GameName echo  [91mGAME NOT FOUND[0m&timeout 3&call :function_banner&call :function_search_imput
-set "GameName=%GameName: Price history=%"
-set "GameName=%GameName: - SteamDB=%"
+REM pause
+
+REM powershell -Command "(gc -LiteralPath '%HOME%google.html') -replace '<div><span jscontroller', \"`r`n^<GAME^>^<\" -replace 'href=""', '><' -replace '"""" data-', 'game><data' -replace \"'\", '' -replace '\\', '' -replace '\|', '' -replace '\?', '' -replace '\*', '' -replace '""', '' -replace '&apos;', '' -replace '&amp;', '' -replace '&#39;', '' | Out-File -LiteralPath '%HOME%google.html' -NoNewline -encoding Default">NUL
+REM for /f "tokens=1-9 delims=<>" %%1 in (google.html) do (
+	REM if "%%1"=="GAME" (
+		REM if not defined GameAppID (
+			REM for /f "tokens=1-9 delims=/" %%a in ("%%4") do (
+				REM if "%%c"=="app" (
+					REM if "%%e"=="game" (
+						REM set GameAppID=%%d
+					REM )
+				REM )
+			REM )
+		REM )
+	REM )
+REM )
+REM if defined GameAppID (
+	REM for /f "tokens=1-10 delims=<>" %%a in (google.html) do (
+		REM if "%%d"=="https://steamdb.info/app/%GameAppID%/game" (
+			REM set "GameName=%%i"
+		REM )
+	REM )
+REM )
+REM del "google.html">NUL
+REM if not defined GameName echo  [91mGAME NOT FOUND[0m&timeout 3&call :function_banner&call :function_search_id
+REM set "GameName=%GameName: Price history=%"
+REM set "GameName=%GameName: - SteamDB=%"
+
 set "GameName=%GameName:<=%"
 set "GameName=%GameName:>=%"
 set "GameName=%GameName:/=%"
@@ -294,7 +376,7 @@ powershell -Command^
 	};
 for /f "tokens=*" %%a in (Continue.txt) do set ANSWER=%%a
 del "Continue.txt">NUL
-if "%ANSWER%"=="NO" del "%GameAppID%.jpg">NUL&echo  [91mCANCELED[0m&timeout 3&call :function_banner&call :function_search_imput
+if "%ANSWER%"=="NO" del "%GameAppID%.jpg">NUL&echo  [91mCANCELED[0m&timeout 3&call :function_banner&call :function_search_id
 :: steam_settings - make dir
 if not exist "%GameName%\steam_settings" mkdir "%GameName%\steam_settings">NUL
 :: steam_settings - header image
